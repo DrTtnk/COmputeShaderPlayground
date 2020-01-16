@@ -1,0 +1,26 @@
+﻿#pragma kernel pixelCalc
+
+RWTexture2D<float4> textureOut;
+float _textSize;
+float4 startingPoint;
+
+float2 normalizePosition(float2 pos, float size) { return pos / size * 2 - 1; }
+
+float getPixel(float2 pos, float2 start, int iter){
+    int counter = 0;
+    float2 val = start;
+    for(counter = 0; counter < iter; counter++){
+        val = float2(val.x * val.x - val.y * val.y, 2 * val.x * val.y) + pos;
+        if(length(val) > 2) return float(counter) / iter;
+    }    
+    return 1.0;
+}
+
+[numthreads(32,32,1)]
+void pixelCalc (uint3 id : SV_DispatchThreadID)
+{
+    float2 pos = normalizePosition(id.xy, _textSize) * 2;
+    float3 col = getPixel(pos, startingPoint.xy, 100);
+    textureOut[id.xy] = float4(col, 0);
+}
+ 
