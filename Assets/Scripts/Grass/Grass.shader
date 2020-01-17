@@ -1,3 +1,7 @@
+// https://roystan.net/articles/grass-shader.html
+// https://halisavakis.com/my-take-on-shaders-geometry-shaders/
+// https://halisavakis.com/my-take-on-shaders-geometry-shaders/
+
 Shader "Grass"
 {
     Properties
@@ -10,39 +14,58 @@ Shader "Grass"
 
 	CGINCLUDE
 	#include "UnityCG.cginc"
-	#include "Autolight.cginc"
+	#include "AutoLight.cginc" 
 
-	// Simple noise function, sourced from http://answers.unity.com/answers/624136/view.html
-	// Extended discussion on this function can be found at the following link:
-	// https://forum.unity.com/threads/am-i-over-complicating-this-random-function.454887/#post-2949326
-	// Returns a number in the 0...1 range.
-	float rand(float3 co)
-	{
-		return frac(sin(dot(co.xyz, float3(12.9898, 78.233, 53.539))) * 43758.5453);
+	struct vertexInput {
+		float4 vertex : POSITION;
+		float3 normal : NORMAL;
+		float4 tangent : TANGENT;
+	};
+
+	struct vertexOutput {
+		float4 vertex : SV_POSITION;
+		float3 normal : NORMAL;
+		float4 tangent : TANGENT;
+	};
+
+	struct geometryOutput { 
+		float4 pos : SV_POSITION; 
+		float2 uv : TEXCOORD0;
+	};
+
+	geometryOutput makeVertex(float3 pos, float2 uv) {
+		geometryOutput o;
+		o.pos = UnityObjectToClipPos(pos);
+		o.uv = uv;
+		return o;
 	}
 
-	// Construct a rotation matrix that rotates around the provided axis, sourced from:
-	// https://gist.github.com/keijiro/ee439d5e7388f3aafc5296005c8c3f33
-	float3x3 AngleAxis3x3(float angle, float3 axis)
+	[maxvertexcount(3)]
+	void geo(triangle vertexOutput IN[3], inout TriangleStream<geometryOutput> triStream)
 	{
-		float c, s;
-		sincos(angle, s, c);
-
-		float t = 1 - c;
-		float x = axis.x;
-		float y = axis.y;
-		float z = axis.z;
-
-		return float3x3(
-			t * x * x + c, t * x * y - s * z, t * x * z + s * y,
-			t * x * y + s * z, t * y * y + c, t * y * z - s * x,
-			t * x * z - s * y, t * y * z + s * x, t * z * z + c
-			);
+		float4 vPos = IN[0].vertex;
+		float3 vNor = IN[0].normal;
+		float4 vTan = IN[0].tangent;
+		float3 vBinormal = cross(vNor, vTan) * vTan.w;
+		float3x3 tangentToLocal = float3x3(
+			vTan.x, vBinormal.x, vNor.x,
+			vTan.y, vBinormal.y, vNor.y,
+			vTan.z, vBinormal.z, vNor.z
+		);
+	
+		float width = 0.1;
+		triStream.Append(makeVertex(vPos + mul(tangentToLocal, float3(width, 0, 0)),  float2(0,  0)));
+		triStream.Append(makeVertex(vPos + mul(tangentToLocal, float3(-width, 0, 0)), float2(1,  0)));
+		triStream.Append(makeVertex(vPos + mul(tangentToLocal, float3(0, 0, 1)), 	  float2(.5, 1)));
 	}
-
-	float4 vert(float4 vertex : POSITION) : SV_POSITION
+	
+	vertexOutput vert(vertexInput vertex)
 	{
-		return UnityObjectToClipPos(vertex);
+		vertexOutput o;
+		o.vertex  = vertex.vertex;
+		o.normal  = vertex.normal;
+		o.tangent = vertex.tangent;
+		return o;
 	}
 	ENDCG
 
@@ -60,7 +83,8 @@ Shader "Grass"
 
             CGPROGRAM
             #pragma vertex vert
-            #pragma fragment frag
+            #pragma geometry geo
+			#pragma fragment frag
 			#pragma target 4.6
             
 			#include "Lighting.cginc"
@@ -69,9 +93,9 @@ Shader "Grass"
 			float4 _BottomColor;
 			float _TranslucentGain;
 
-			float4 frag (float4 vertex : SV_POSITION, fixed facing : VFACE) : SV_Target
+			float4 frag (geometryOutput vertex, fixed facing : VFACE) : SV_Target
             {	
-				return float4(1, 1, 1, 1);
+				return float4(vertex.uv, 1, 1);
             }
             ENDCG
         }
