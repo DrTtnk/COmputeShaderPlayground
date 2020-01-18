@@ -1,6 +1,6 @@
 ﻿using UnityEngine;
 
-public class Mandelbrot : MonoBehaviour
+public class MandelbrotCompute : MonoBehaviour
 {
     public Renderer rend;
     public RenderTexture outputTexture;
